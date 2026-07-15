@@ -216,7 +216,7 @@ class FaultManager:
                         session_data = self.redis_client.get(key)
                         if session_data:
                             session = json.loads(session_data)
-                            if session.get("assigned_worker") == worker_id:
+                            if session.get("assigned_node") == worker_id:
                                 tasks.append(session.get("session_id"))
                     except Exception:
                         continue
