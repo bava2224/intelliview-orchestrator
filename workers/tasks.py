@@ -11,6 +11,7 @@ Pipeline:
 
 from __future__ import annotations
 
+
 import json
 import logging
 import socket
@@ -18,6 +19,8 @@ import time
 from datetime import datetime, timezone
 
 from celery import chord, group
+from celery.exceptions import SoftTimeLimitExceeded
+
 from sqlalchemy import select
 
 from database.db import SessionLocal
@@ -304,6 +307,19 @@ def process_interview_session(self, session_id):
             "status": "processing_parallel",
             "processed_by": worker_hostname,
         }
+       except SoftTimeLimitExceeded as exc:
+         logger.error(
+            "Soft time limit exceeded while processing session %s: %s",
+            session_id,
+            exc,
+            exc_info=True,
+        )
+
+        FAILURE_COUNT.labels(
+            failure_type="soft_time_limit_exceeded"
+        ).inc()
+
+        raise
 
     except Exception as exc:
         retry_delay = 2 ** (self.request.retries + 1)
