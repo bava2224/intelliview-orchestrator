@@ -1,4 +1,5 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { useState, useMemo } from "react";
 import useSWR from "swr";
 import {
@@ -90,6 +91,7 @@ function useCandidateData() {
 }
 
 export default function CandidatesPage() {
+  const router = useRouter();
   const { candidates, isLoading, error, mutate } = useCandidateData();
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState(null);
@@ -215,7 +217,7 @@ export default function CandidatesPage() {
                 {filtered.map((c) => (
                   <button
                     key={c.candidate_id}
-                    onClick={() => setSelectedId(c.candidate_id)}
+                    onClick={() => router.push(`/candidates/${c.candidate_id}`)}
                     className={cn(
                       "flex w-full items-center justify-between rounded-md px-3 py-2.5 text-left text-sm transition-colors",
                       selectedId === c.candidate_id
