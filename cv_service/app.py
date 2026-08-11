@@ -1,3 +1,4 @@
+
 import os
 import tempfile
 
@@ -14,6 +15,7 @@ app = FastAPI(
     description="Standalone OpenCV + MediaPipe microservice",
     version="1.0.0",
 )
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -45,7 +47,11 @@ async def analyze_video(request: VideoRequest):
 
 # Resume parsing configuration
 ALLOWED_CONTENT_TYPES = {"application/pdf"}
+
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
+
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+
 
 
 @app.post("/parse-resume")
@@ -53,7 +59,11 @@ async def parse_resume(file: UploadFile = File(...)):
     """
     Upload a PDF resume and parse it using the shared resume parser.
 
+
     Extracts:
+
+    The resume parser extracts:
+
     - Resume text
     - Technical skills
     - Education
@@ -86,8 +96,13 @@ async def parse_resume(file: UploadFile = File(...)):
     temp_path = None
 
     try:
+
         # The shared parser expects a file path,
         # so temporarily save the uploaded PDF.
+
+        # Save uploaded PDF temporarily because the shared parser
+        # expects a file path.
+
         with tempfile.NamedTemporaryFile(
             suffix=".pdf",
             delete=False,
@@ -95,10 +110,17 @@ async def parse_resume(file: UploadFile = File(...)):
             temp_file.write(raw)
             temp_path = temp_file.name
 
+
         # Use the shared resume parsing logic.
         parsed_resume = parse_resume_file(temp_path)
 
         # Return parsed information to the frontend.
+
+        # Use the resume parsing logic from orchestrator/resume_parser.py
+        parsed_resume = parse_resume_file(temp_path)
+
+        # Return the parsed information to the frontend
+
         return {
             "filename": file.filename,
             **parsed_resume,
@@ -117,6 +139,11 @@ async def parse_resume(file: UploadFile = File(...)):
         )
 
     finally:
+
         # Always remove the temporary PDF.
+        if temp_path and os.path.exists(temp_path):
+            os.remove(temp_path)
+
+        # Always remove the temporary PDF after parsing.
         if temp_path and os.path.exists(temp_path):
             os.remove(temp_path)
