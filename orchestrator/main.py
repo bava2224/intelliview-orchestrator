@@ -22,6 +22,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from uuid import uuid4
 
+from sqlalchemy import or_
 from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from opentelemetry import trace
@@ -1297,17 +1298,44 @@ async def add_question(
 
 @app.get("/candidates")
 async def list_candidates(
-    limit: int = 100,
+    search: str | None = None,
+    skill: str | None = None,
+    position: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    page: int = 1,
     session_db: Session = Depends(get_db),
 ):
-    """List all candidates"""
+    """List candidates with search, skill filtering and pagination."""
     try:
-        candidates = candidate_manager.list_candidates(limit=limit)
-        return {"count": len(candidates), "candidates": candidates}
-    except Exception as e:
-        logger.error(f"Error listing candidates: {e!s}")
-        raise HTTPException(status_code=500, detail="Error listing candidates")
+        if page < 1:
+            raise HTTPException(status_code=400, detail="Page must be at least 1")
 
+        limit = 20
+        offset = (page - 1) * limit
+
+        candidates = candidate_manager.list_candidates(
+            limit=limit,
+            offset=offset,
+            search=search,
+            skill=skill,
+            position=position,
+            date_from=date_from,
+            date_to=date_to,
+        )
+
+        return {
+            "count": len(candidates),
+            "page": page,
+            "limit": limit,
+            "candidates": candidates,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print("REAL ERROR:", repr(e))
+        raise
 
 @app.post("/candidates")
 async def create_candidate(

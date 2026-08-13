@@ -18,7 +18,12 @@ import { StatusBadge, Badge } from "@/components/Badge";
 import { Skeleton, ErrorState, EmptyState } from "@/components/States";
 import { SearchInput } from "@/components/SearchInput";
 import Pipeline from "@/components/Pipeline";
-import { formatDate, formatRelative, riskColor, formatPercent } from "@/lib/utils";
+import {
+  formatDate,
+  formatRelative,
+  riskColor,
+  formatPercent,
+} from "@/lib/utils";
 import {
   Bar,
   BarChart,
@@ -29,77 +34,56 @@ import {
   YAxis,
 } from "recharts";
 
-function useCandidateData() {
-  const completed = useSWR("/completed-sessions?limit=100", { refreshInterval: 10000 });
-  const failed = useSWR("/failed-sessions?limit=100", { refreshInterval: 10000 });
-  const active = useSWR("/active-sessions", { refreshInterval: 5000 });
+function useCandidateData(search, skill, position, dateFrom, dateTo, page) {
+  const params = new URLSearchParams();
 
-  const candidates = useMemo(() => {
-    const map = new Map();
-    const allSessions = [
-      ...(completed.data?.sessions ?? []),
-      ...(failed.data?.sessions ?? []),
-      ...(active.data?.sessions ?? []),
-    ];
+  if (search.trim()) {
+    params.set("search", search.trim());
+  }
 
-    for (const s of allSessions) {
-      const id = s.candidate_id || "unknown";
-      if (!map.has(id)) {
-        map.set(id, {
-          candidate_id: id,
-          total_sessions: 0,
-          completed_sessions: 0,
-          failed_sessions: 0,
-          active_sessions: 0,
-          risk_scores: [],
-          sessions: [],
-        });
-      }
-      const c = map.get(id);
-      c.total_sessions += 1;
-      c.sessions.push(s);
-      if (s.status === "COMPLETED") c.completed_sessions += 1;
-      else if (s.status === "FAILED" || s.status === "TIMEOUT") c.failed_sessions += 1;
-      else c.active_sessions += 1;
-      if (s.risk_score != null) c.risk_scores.push(s.risk_score);
-    }
+  if (skill.trim()) {
+    params.set("skill", skill.trim());
+  }
 
-    return Array.from(map.values())
-      .map((c) => ({
-        ...c,
-        avg_risk_score:
-          c.risk_scores.length > 0
-            ? c.risk_scores.reduce((a, b) => a + b, 0) / c.risk_scores.length
-            : null,
-        latest_session: c.sessions.sort(
-          (a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0)
-        )[0],
-      }))
-      .sort((a, b) => b.total_sessions - a.total_sessions);
-  }, [completed.data, failed.data, active.data]);
+  if (position.trim()) {
+    params.set("position", position.trim());
+  }
+
+  if (dateFrom) {
+    params.set("date_from", dateFrom);
+  }
+
+  if (dateTo) {
+    params.set("date_to", dateTo);
+  }
+
+  params.set("page", page.toString());
+
+  const url = `/candidates?${params.toString()}`;
+
+  const { data, error, isLoading, mutate } = useSWR(url);
 
   return {
-    candidates,
-    isLoading: completed.isLoading && failed.isLoading,
-    error: completed.error || failed.error,
-    mutate: () => {
-      completed.mutate();
-      failed.mutate();
-      active.mutate();
-    },
+    candidates: data?.candidates ?? [],
+    count: data?.count ?? 0,
+    limit: data?.limit ?? 20,
+    page: data?.page ?? page,
+    isLoading,
+    error,
+    mutate,
   };
 }
-
 export default function CandidatesPage() {
-  const { candidates, isLoading, error, mutate } = useCandidateData();
   const [search, setSearch] = useState("");
+  const [skill, setSkill] = useState("");
+  const [position, setPosition] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState(null);
 
-  const filtered = useMemo(() => {
-    if (!search.trim()) return candidates;
-    const q = search.toLowerCase();
-    return candidates.filter((c) => c.candidate_id.toLowerCase().includes(q));
-  }, [candidates, search]);
+  const { candidates, count, limit, isLoading, error, mutate } =
+    useCandidateData(search, skill, position, dateFrom, dateTo, page);
 
   const selected = candidates.find((c) => c.candidate_id === selectedId);
 
@@ -117,11 +101,11 @@ export default function CandidatesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-zinc-50">Candidates</h1>
-          <p className="text-sm text-muted">Candidate profiles, interview history, and performance analytics.</p>
+          <p className="text-sm text-muted">
+            Candidate profiles, interview history, and performance analytics.
+          </p>
         </div>
-        <div className="text-xs text-muted">
-          {candidates.length} candidates
-        </div>
+        <div className="text-xs text-muted">{candidates.length} candidates</div>
       </div>
 
       <StatsCards
@@ -137,54 +121,128 @@ export default function CandidatesPage() {
         <div className="lg:col-span-1">
           <Card
             title="Candidate List"
-            description={`${filtered.length} candidates`}
+            description={`${count} candidates`}
             action={
               <SearchInput
                 value={search}
-                onChange={setSearch}
-                placeholder="Search candidates..."
+                onChange={(value) => {
+                  setSearch(value);
+                  setPage(1);
+                }}
+                placeholder="Search name or email..."
                 className="w-48"
               />
             }
           >
+            <select
+              value={skill}
+              onChange={(e) => {
+                setSkill(e.target.value);
+                setPage(1);
+              }}
+              className="rounded-md border px-3 py-2"
+            >
+              <option value="">All Skills</option>
+              <option value="python">Python</option>
+              <option value="FastAPI">FastAPI</option>
+              <option value="SQL">SQL</option>
+              <option value="Java">Java</option>
+              <option value="React">React</option>
+            </select>
+            <input
+              type="text"
+              value={position}
+              onChange={(e) => {
+                setPosition(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Position"
+              className="rounded-md border px-3 py-2"
+            />
+
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => {
+                setDateFrom(e.target.value);
+                setPage(1);
+              }}
+              className="rounded-md border px-3 py-2"
+            />
+
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => {
+                setDateTo(e.target.value);
+                setPage(1);
+              }}
+              className="rounded-md border px-3 py-2"
+            />
+
             {error ? (
               <ErrorState error={error} onRetry={mutate} />
             ) : isLoading ? (
               <Skeleton className="h-48 w-full" />
-            ) : filtered.length === 0 ? (
+            ) : candidates.length === 0 ? (
               <EmptyState
                 title="No candidates"
                 description="Candidate data will appear after sessions are completed."
               />
             ) : (
-              <div className="max-h-[500px] space-y-1 overflow-y-auto">
-                {filtered.map((c) => (
+              <>
+                <div className="max-h-[500px] space-y-1 overflow-y-auto">
+                  {candidates.map((c) => (
+                    <button
+                      key={c.candidate_id}
+                      onClick={() => setSelectedId(c.candidate_id)}
+                      className={cn(
+                        "flex w-full items-center justify-between rounded-md px-3 py-2.5 text-left text-sm transition-colors",
+                        selectedId === c.candidate_id
+                          ? "bg-accent/15 text-accent-light"
+                          : "text-zinc-300 hover:bg-bg-card",
+                      )}
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate font-mono text-xs text-zinc-200">
+                          {c.candidate_id}
+                        </div>
+                        <div className="text-[10px] text-muted">
+                          {c.total_sessions} session
+                          {c.total_sessions !== 1 ? "s" : ""}
+                        </div>
+                      </div>
+                      {c.avg_risk_score != null && (
+                        <Badge variant={riskColor(c.avg_risk_score)}>
+                          {c.avg_risk_score.toFixed(2)}
+                        </Badge>
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
                   <button
-                    key={c.candidate_id}
-                    onClick={() => setSelectedId(c.candidate_id)}
-                    className={cn(
-                      "flex w-full items-center justify-between rounded-md px-3 py-2.5 text-left text-sm transition-colors",
-                      selectedId === c.candidate_id
-                        ? "bg-accent/15 text-accent-light"
-                        : "text-zinc-300 hover:bg-bg-card"
-                    )}
+                    type="button"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                    className="rounded-md border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <div className="min-w-0">
-                      <div className="truncate font-mono text-xs text-zinc-200">
-                        {c.candidate_id}
-                      </div>
-                      <div className="text-[10px] text-muted">
-                        {c.total_sessions} session{c.total_sessions !== 1 ? "s" : ""}
-                      </div>
-                    </div>
-                    {c.avg_risk_score != null && (
-                      <Badge variant={riskColor(c.avg_risk_score)}>
-                        {c.avg_risk_score.toFixed(2)}
-                      </Badge>
-                    )}
+                    Previous
                   </button>
-                ))}
-              </div>
+
+                  <span className="text-xs text-muted">Page {page}</span>
+
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => p + 1)}
+                    disabled={candidates.length < limit}
+                    className="rounded-md border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </>
             )}
           </Card>
         </div>
@@ -194,7 +252,9 @@ export default function CandidatesPage() {
             <Card>
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <UserCircle size={48} className="mb-3 text-muted opacity-30" />
-                <p className="text-sm text-zinc-300">Select a candidate to view details</p>
+                <p className="text-sm text-zinc-300">
+                  Select a candidate to view details
+                </p>
                 <p className="mt-1 text-xs text-muted">
                   Click on a candidate from the list to see their profile
                 </p>
@@ -202,30 +262,43 @@ export default function CandidatesPage() {
             </Card>
           ) : (
             <div className="space-y-4">
-              <Card title={selected.candidate_id} description="Candidate profile and performance">
+              <Card
+                title={selected.candidate_id}
+                description="Candidate profile and performance"
+              >
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <div className="rounded-md border border-border bg-bg-card px-3 py-2.5">
-                    <div className="text-[10px] uppercase tracking-wide text-muted">Total</div>
+                    <div className="text-[10px] uppercase tracking-wide text-muted">
+                      Total
+                    </div>
                     <div className="mt-1 text-lg font-semibold text-zinc-50">
                       {selected.total_sessions}
                     </div>
                   </div>
                   <div className="rounded-md border border-border bg-bg-card px-3 py-2.5">
-                    <div className="text-[10px] uppercase tracking-wide text-muted">Completed</div>
+                    <div className="text-[10px] uppercase tracking-wide text-muted">
+                      Completed
+                    </div>
                     <div className="mt-1 text-lg font-semibold text-emerald-400">
                       {selected.completed_sessions}
                     </div>
                   </div>
                   <div className="rounded-md border border-border bg-bg-card px-3 py-2.5">
-                    <div className="text-[10px] uppercase tracking-wide text-muted">Failed</div>
+                    <div className="text-[10px] uppercase tracking-wide text-muted">
+                      Failed
+                    </div>
                     <div className="mt-1 text-lg font-semibold text-rose-400">
                       {selected.failed_sessions}
                     </div>
                   </div>
                   <div className="rounded-md border border-border bg-bg-card px-3 py-2.5">
-                    <div className="text-[10px] uppercase tracking-wide text-muted">Avg Risk</div>
+                    <div className="text-[10px] uppercase tracking-wide text-muted">
+                      Avg Risk
+                    </div>
                     <div className="mt-1 text-lg font-semibold text-zinc-50">
-                      {selected.avg_risk_score != null ? selected.avg_risk_score.toFixed(3) : "—"}
+                      {selected.avg_risk_score != null
+                        ? selected.avg_risk_score.toFixed(3)
+                        : "—"}
                     </div>
                   </div>
                 </div>
@@ -245,13 +318,20 @@ export default function CandidatesPage() {
                           borderRadius: 8,
                         }}
                       />
-                      <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                      <Bar
+                        dataKey="count"
+                        fill="#6366f1"
+                        radius={[4, 4, 0, 0]}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </Card>
               )}
 
-              <Card title="Interview History" description="All sessions for this candidate">
+              <Card
+                title="Interview History"
+                description="All sessions for this candidate"
+              >
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="text-left text-xs uppercase tracking-wide text-muted">
@@ -268,10 +348,14 @@ export default function CandidatesPage() {
                       {selected.sessions
                         .sort(
                           (a, b) =>
-                            new Date(b.updated_at || 0) - new Date(a.updated_at || 0)
+                            new Date(b.updated_at || 0) -
+                            new Date(a.updated_at || 0),
                         )
                         .map((s) => (
-                          <tr key={s.session_id} className="border-t border-border">
+                          <tr
+                            key={s.session_id}
+                            className="border-t border-border"
+                          >
                             <td className="py-2 pr-4 font-mono text-xs text-zinc-300">
                               {s.session_id}
                             </td>
