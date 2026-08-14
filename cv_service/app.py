@@ -9,6 +9,9 @@ from pydantic import BaseModel
 from processing import run_video_analysis
 from orchestrator.resume_parser import parse_resume as parse_resume_file
 
+from database.db import SessionLocal
+from database.models.candidate import Candidate
+
 
 app = FastAPI(
     title="CV Processing Service",
@@ -50,7 +53,6 @@ ALLOWED_CONTENT_TYPES = {"application/pdf"}
 
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
 
-MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
 
 
 
@@ -114,10 +116,6 @@ async def parse_resume(file: UploadFile = File(...)):
         # Use the shared resume parsing logic.
         parsed_resume = parse_resume_file(temp_path)
 
-        # Return parsed information to the frontend.
-
-        # Use the resume parsing logic from orchestrator/resume_parser.py
-        parsed_resume = parse_resume_file(temp_path)
 
         # Return the parsed information to the frontend
 
@@ -141,9 +139,5 @@ async def parse_resume(file: UploadFile = File(...)):
     finally:
 
         # Always remove the temporary PDF.
-        if temp_path and os.path.exists(temp_path):
-            os.remove(temp_path)
-
-        # Always remove the temporary PDF after parsing.
         if temp_path and os.path.exists(temp_path):
             os.remove(temp_path)
