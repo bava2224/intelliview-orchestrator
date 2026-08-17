@@ -2,7 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useMemo } from "react";
 import useSWR from "swr";
-import { UserCircle } from "lucide-react";
+import { UserCircle, CheckCircle2, AlertTriangle, Activity } from "lucide-react";
 
 import Card from "@/components/Card";
 import Stat from "@/components/Stat";
@@ -321,75 +321,19 @@ export default function CandidatesPage() {
           </Card>
         </div>
 
-                    <Tbody>
-                      {selected.sessions
-                        .sort(
-                          (a, b) =>
-                            new Date(
-                              b.updated_at || 0
-                            ) -
-                            new Date(
-                              a.updated_at || 0
-                            )
-                        )
-                        .map((s) => (
-                          <Tr key={s.session_id}>
-
-                            {/* Session */}
-                            <Td className="font-mono text-xs text-zinc-300">
-                              {s.session_id}
-                            </Td>
-
-                            {/* Pipeline */}
-                            <Td>
-                              <Pipeline
-                                current={s.status}
-                              />
-                            </Td>
-
-                            {/* Status */}
-                            <Td>
-                              <StatusBadge
-                                status={s.status}
-                              />
-                            </Td>
-
-                            {/* Risk */}
-                            <Td>
-                              {s.risk_score != null ? (
-                                <Badge
-                                  variant={riskColor(
-                                    s.risk_score
-                                  )}
-                                >
-                                  {s.risk_score.toFixed(2)}
-                                </Badge>
-                              ) : (
-                                <span className="text-muted">
-                                  —
-                                </span>
-                              )}
-                            </Td>
-
-                            {/* Worker */}
-                            <Td className="font-mono text-xs text-muted">
-                              {s.assigned_node ?? "—"}
-                            </Td>
-
-                            {/* Updated */}
-                            <Td className="text-muted">
-                              {formatDate(
-                                s.updated_at ??
-                                  s.end_time
-                              )}
-                            </Td>
-
-                          </Tr>
-                        ))}
-                    </Tbody>
-                  </Table>
-                </Card>
-
+                    <div className="lg:col-span-2">
+          {!selected ? (
+            <Card>
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <UserCircle size={48} className="mb-3 text-muted opacity-30" />
+                <p className="text-sm text-zinc-300">Select a candidate to view details</p>
+                <p className="mt-1 text-xs text-muted">
+                  Click on a candidate from the list to see their profile
+                </p>
+              </div>
+            </Card>
+          ) : (
+            <div className="space-y-4">
               <Card title="Interview History" description="All sessions for this candidate">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
