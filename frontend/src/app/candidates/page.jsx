@@ -349,7 +349,6 @@ export default function CandidatesPage() {
             </div>
           )}
         </div>
-      </div>
     </div>
   );
 }
